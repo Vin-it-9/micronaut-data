@@ -25,15 +25,10 @@ class NestedJsonQueryResultSpec extends AbstractDataSpec {
     void "test PostgreSQL auto-generated nested JSON query with independent to-many joins"() {
         given:
         def repository = buildRepository('test.ParentRepository', """
-package test;
-
 import io.micronaut.data.annotation.*;
-import io.micronaut.data.jdbc.annotation.JdbcRepository;
 import io.micronaut.data.model.query.builder.sql.Dialect;
-import io.micronaut.data.repository.CrudRepository;
-import java.util.*;
 
-@JdbcRepository(dialect = Dialect.POSTGRES)
+@io.micronaut.data.jdbc.annotation.JdbcRepository(dialect = Dialect.POSTGRES)
 interface ParentRepository extends CrudRepository<Parent, Long> {
 
     @Override
@@ -124,16 +119,11 @@ class Tag {
     void "test Oracle auto-generated nested JSON query with native OSON and text return types"() {
         given:
         def repository = buildRepository('test.OracleParentRepository', """
-package test;
-
 import io.micronaut.data.annotation.*;
-import io.micronaut.data.jdbc.annotation.JdbcRepository;
 import io.micronaut.data.model.JsonDataType;
 import io.micronaut.data.model.query.builder.sql.Dialect;
-import io.micronaut.data.repository.CrudRepository;
-import java.util.*;
 
-@JdbcRepository(dialect = Dialect.ORACLE)
+@io.micronaut.data.jdbc.annotation.JdbcRepository(dialect = Dialect.ORACLE)
 interface OracleParentRepository extends CrudRepository<ParentEntity, Long> {
 
     @Override
@@ -210,15 +200,10 @@ class ChildEntity {
     void "test nested associations and to-one relationships"() {
         given:
         def repository = buildRepository('test.CompanyRepository', """
-package test;
-
 import io.micronaut.data.annotation.*;
-import io.micronaut.data.jdbc.annotation.JdbcRepository;
 import io.micronaut.data.model.query.builder.sql.Dialect;
-import io.micronaut.data.repository.CrudRepository;
-import java.util.*;
 
-@JdbcRepository(dialect = Dialect.POSTGRES)
+@io.micronaut.data.jdbc.annotation.JdbcRepository(dialect = Dialect.POSTGRES)
 interface CompanyRepository extends CrudRepository<Company, Long> {
 
     @Join(value = "address", type = Join.Type.LEFT_FETCH)
@@ -312,22 +297,17 @@ class Employee {
         // To-one relationship address
         query.contains("'address', (SELECT json_build_object('id', address_.\"id\", 'street', address_.\"street\") FROM \"address\" address_ WHERE address_.\"id\" = company_.\"address_id\")")
         // Nested to-many departments -> employees
-        query.contains("'employees', (SELECT json_agg(json_build_object('id', employee_.\"id\", 'empName', employee_.\"emp_name\")) FROM \"employee\" employee_ WHERE employee_.\"department_id\" = department_.\"id\")")
+        query.contains("'employees', (SELECT json_agg(json_build_object('id', employees_.\"id\", 'empName', employees_.\"emp_name\")) FROM \"employee\" employees_ WHERE employees_.\"department_id\" = departments_.\"id\")")
         query.contains("WHERE (company_.\"id\" = ?)")
     }
 
     void "test hand-written @Query methods with @QueryResult retain custom query"() {
         given:
         def repository = buildRepository('test.CustomJsonRepository', """
-package test;
-
 import io.micronaut.data.annotation.*;
-import io.micronaut.data.jdbc.annotation.JdbcRepository;
 import io.micronaut.data.model.query.builder.sql.Dialect;
-import io.micronaut.data.repository.CrudRepository;
-import java.util.*;
 
-@JdbcRepository(dialect = Dialect.POSTGRES)
+@io.micronaut.data.jdbc.annotation.JdbcRepository(dialect = Dialect.POSTGRES)
 interface CustomJsonRepository extends CrudRepository<SimpleEntity, Long> {
 
     @Query("SELECT json_build_object('id', s.id, 'name', upper(s.name)) AS DATA FROM simple_entity s WHERE s.id = :id")
@@ -351,6 +331,6 @@ class SimpleEntity {
         def query = repository.getRequiredMethod("getCustom", Long).stringValue(Query).get()
 
         expect:
-        query == "SELECT json_build_object('id', s.id, 'name', upper(s.name)) AS DATA FROM simple_entity s WHERE s.id = ?"
+        query == "SELECT json_build_object('id', s.id, 'name', upper(s.name)) AS DATA FROM simple_entity s WHERE s.id = :id"
     }
 }
