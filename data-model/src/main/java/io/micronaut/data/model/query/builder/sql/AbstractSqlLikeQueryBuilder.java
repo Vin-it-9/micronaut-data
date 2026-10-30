@@ -340,7 +340,9 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
         List<JoinPath> joinPaths = new ArrayList<>(definition.getJoinPaths());
         joinPaths.sort((o1, o2) -> Comparator.comparingInt(String::length).thenComparing(String::compareTo).compare(o1.getPath(), o2.getPath()));
         for (JoinPath joinPath : joinPaths) {
-            queryState.applyJoin(joinPath);
+            if (shouldApplyJoinPath(annotationMetadata, definition, joinPath)) {
+                queryState.applyJoin(joinPath);
+            }
         }
 
         StringBuilder query = queryState.getQuery();
@@ -537,15 +539,61 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
     private void buildSelectClause(AnnotationMetadata annotationMetadata,
                                    SelectQueryDefinition definition,
                                    QueryState queryState) {
-        buildSelect(annotationMetadata,
-            queryState,
-            definition.selection(),
-            definition.isDistinct());
+        if (isNestedJsonQueryResult(annotationMetadata, definition)) {
+            buildNestedJsonSelect(annotationMetadata, queryState, definition);
+        } else {
+            buildSelect(annotationMetadata,
+                queryState,
+                definition.selection(),
+                definition.isDistinct());
+        }
 
         queryState.getQuery().append(FROM_CLAUSE)
             .append(getTableName(queryState.getEntity()))
             .append(getTableAsKeyword())
             .append(queryState.getRootAlias());
+    }
+
+    protected boolean shouldApplyJoinPath(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition, JoinPath joinPath) {
+        if (isNestedJsonQueryResult(annotationMetadata, definition) && NestedJsonQueryBuilder.isNestedJsonSupported(getDialect())) {
+            return !joinPath.getJoinType().isFetch();
+        }
+        return true;
+    }
+
+    protected boolean isNestedJsonQueryResult(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition) {
+        if (annotationMetadata == null || isCountSelection(definition.selection())) {
+            return false;
+        }
+        AnnotationValue<io.micronaut.data.annotation.QueryResult> queryResultAnn = annotationMetadata.getAnnotation(io.micronaut.data.annotation.QueryResult.class);
+        return queryResultAnn != null && queryResultAnn.enumValue("type", io.micronaut.data.annotation.QueryResult.Type.class)
+            .orElse(io.micronaut.data.annotation.QueryResult.Type.TABULAR) == io.micronaut.data.annotation.QueryResult.Type.JSON;
+    }
+
+    protected boolean isCountSelection(Selection<?> selection) {
+        if (selection instanceof UnaryExpression<?> unaryExpression) {
+            return unaryExpression.getType() == UnaryExpressionType.COUNT
+                || unaryExpression.getType() == UnaryExpressionType.COUNT_DISTINCT;
+        }
+        return false;
+    }
+
+    protected void buildNestedJsonSelect(AnnotationMetadata annotationMetadata,
+                                        QueryState queryState,
+                                        SelectQueryDefinition definition) {
+        PersistentEntity entity = queryState.getEntity();
+        String rootAlias = queryState.getRootAlias();
+        Collection<JoinPath> joinPaths = definition.getJoinPaths();
+
+        NestedJsonQueryBuilder jsonBuilder = new NestedJsonQueryBuilder(this);
+        String jsonProjection = jsonBuilder.buildNestedJsonProjection(
+            entity,
+            rootAlias,
+            joinPaths,
+            annotationMetadata
+        );
+
+        queryState.getQuery().append(jsonProjection);
     }
 
     /**
