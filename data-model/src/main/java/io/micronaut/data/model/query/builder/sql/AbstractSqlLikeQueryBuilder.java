@@ -582,7 +582,7 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
                                         QueryState queryState,
                                         SelectQueryDefinition definition) {
         PersistentEntity entity = queryState.getEntity();
-        String rootAlias = queryState.getRootAlias();
+        String rootAlias = queryState.getRootAlias() != null ? queryState.getRootAlias() : getAliasName(entity);
         Collection<JoinPath> joinPaths = definition.getJoinPaths();
 
         NestedJsonQueryBuilder jsonBuilder = new NestedJsonQueryBuilder(this);

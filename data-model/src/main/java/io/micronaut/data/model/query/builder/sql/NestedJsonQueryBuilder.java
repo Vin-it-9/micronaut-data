@@ -38,6 +38,7 @@ import io.micronaut.data.model.PersistentEntityUtils;
 import io.micronaut.data.model.PersistentProperty;
 import io.micronaut.data.model.naming.NamingStrategy;
 import io.micronaut.data.model.query.JoinPath;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -110,13 +111,15 @@ public class NestedJsonQueryBuilder {
      * @return the SQL projection string (e.g. "json_build_object(...) AS \"DATA\"")
      */
     public String buildNestedJsonProjection(PersistentEntity entity,
-                                           String rootAlias,
+                                           @Nullable String rootAlias,
                                            Collection<JoinPath> joinPaths,
                                            AnnotationMetadata annotationMetadata) {
         if (!isNestedJsonSupported(dialect)) {
             throw new IllegalArgumentException("Nested JSON query result (@QueryResult(type = JSON)) is not supported for dialect ["
                 + dialect + "]. Currently supported dialects are PostgreSQL and Oracle.");
         }
+
+        String alias = rootAlias != null ? rootAlias : sqlQueryBuilder.getAliasName(entity);
 
         String targetColumn = annotationMetadata.stringValue(QueryResult.class, "column")
             .orElse(QueryResult.DEFAULT_COLUMN);
@@ -133,13 +136,13 @@ public class NestedJsonQueryBuilder {
 
         if (dialect == Dialect.POSTGRES) {
             sb.append("json_build_object(");
-            appendEntityPropertiesPostgres(sb, entity, rootAlias, pathsByRootPrefix, visitedEntities);
+            appendEntityPropertiesPostgres(sb, entity, alias, pathsByRootPrefix, visitedEntities);
             sb.append(")");
         } else {
             // Dialect.ORACLE
             String rootReturningClause = getOracleRootReturningClause(jsonDataType);
             sb.append("JSON_OBJECT(");
-            appendEntityPropertiesOracle(sb, entity, rootAlias, pathsByRootPrefix, visitedEntities, false);
+            appendEntityPropertiesOracle(sb, entity, alias, pathsByRootPrefix, visitedEntities);
             sb.append(" ").append(rootReturningClause).append(")");
         }
 
@@ -238,8 +241,7 @@ public class NestedJsonQueryBuilder {
                                               PersistentEntity entity,
                                               String alias,
                                               Map<String, List<JoinPath>> nestedPaths,
-                                              Set<PersistentEntity> visitedEntities,
-                                              boolean isNested) {
+                                              Set<PersistentEntity> visitedEntities) {
         boolean first = true;
         NamingStrategy namingStrategy = sqlQueryBuilder.getNamingStrategy(entity);
         boolean escape = sqlQueryBuilder.shouldEscape(entity);
@@ -491,7 +493,7 @@ public class NestedJsonQueryBuilder {
             sb.append("JSON_OBJECT(");
         }
 
-        appendEntityPropertiesOracle(sb, targetEntity, childAlias, nextNestedPaths, nextVisited, true);
+        appendEntityPropertiesOracle(sb, targetEntity, childAlias, nextNestedPaths, nextVisited);
 
         if (isToMany) {
             sb.append(" RETURNING JSON)");
@@ -620,6 +622,7 @@ public class NestedJsonQueryBuilder {
         return association.getAliasName();
     }
 
+    @Nullable
     private String resolveOrderByClause(Association association, PersistentEntity targetEntity, String childAlias) {
         AnnotationMetadata metadata = association.getAnnotationMetadata();
         String orderByValue = metadata.stringValue(OrderBy.class).orElse(null);
