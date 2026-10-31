@@ -554,6 +554,14 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
             .append(queryState.getRootAlias());
     }
 
+    /**
+     * Determines whether a join path belongs in the outer query.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param definition the select query definition
+     * @param joinPath the join path
+     * @return {@code true} when the join should be applied
+     */
     protected boolean shouldApplyJoinPath(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition, JoinPath joinPath) {
         if (isNestedJsonQueryResult(annotationMetadata, definition) && NestedJsonQueryBuilder.isNestedJsonSupported(getDialect())) {
             return !joinPath.getJoinType().isFetch();
@@ -561,15 +569,27 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
         return true;
     }
 
+    /**
+     * Checks whether this query requests an automatically generated nested JSON entity result.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param definition the select query definition
+     * @return {@code true} when the selection is the root entity and its result type is JSON
+     */
     protected boolean isNestedJsonQueryResult(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition) {
-        if (annotationMetadata == null || isCountSelection(definition.selection())) {
+        if (annotationMetadata == null || isCountSelection(definition.selection())
+            || !(definition.selection() instanceof PersistentEntityRoot<?>)) {
             return false;
         }
-        AnnotationValue<io.micronaut.data.annotation.QueryResult> queryResultAnn = annotationMetadata.getAnnotation(io.micronaut.data.annotation.QueryResult.class);
-        return queryResultAnn != null && queryResultAnn.enumValue("type", io.micronaut.data.annotation.QueryResult.Type.class)
-            .orElse(io.micronaut.data.annotation.QueryResult.Type.TABULAR) == io.micronaut.data.annotation.QueryResult.Type.JSON;
+        return NestedJsonQueryBuilder.isNestedJsonQueryResult(annotationMetadata);
     }
 
+    /**
+     * Checks whether the selection is a count expression.
+     *
+     * @param selection the query selection
+     * @return {@code true} when the selection counts rows or distinct rows
+     */
     protected boolean isCountSelection(Selection<?> selection) {
         if (selection instanceof UnaryExpression<?> unaryExpression) {
             return unaryExpression.getType() == UnaryExpressionType.COUNT
@@ -578,6 +598,13 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
         return false;
     }
 
+    /**
+     * Appends the dialect-specific nested JSON projection.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param queryState the current query state
+     * @param definition the select query definition
+     */
     protected void buildNestedJsonSelect(AnnotationMetadata annotationMetadata,
                                         QueryState queryState,
                                         SelectQueryDefinition definition) {

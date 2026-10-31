@@ -21,9 +21,6 @@ import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.core.util.StringUtils;
-import io.micronaut.data.annotation.EmbeddedId;
-import io.micronaut.data.annotation.Join;
-import io.micronaut.data.annotation.MappedProperty;
 import io.micronaut.data.annotation.OrderBy;
 import io.micronaut.data.annotation.QueryResult;
 import io.micronaut.data.annotation.Relation;
@@ -34,7 +31,6 @@ import io.micronaut.data.model.DataType;
 import io.micronaut.data.model.Embedded;
 import io.micronaut.data.model.JsonDataType;
 import io.micronaut.data.model.PersistentEntity;
-import io.micronaut.data.model.PersistentEntityUtils;
 import io.micronaut.data.model.PersistentProperty;
 import io.micronaut.data.model.naming.NamingStrategy;
 import io.micronaut.data.model.query.JoinPath;
@@ -44,11 +40,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -71,6 +65,11 @@ public class NestedJsonQueryBuilder {
     private final AbstractSqlLikeQueryBuilder sqlQueryBuilder;
     private final Dialect dialect;
 
+    /**
+     * Creates a nested JSON query builder.
+     *
+     * @param sqlQueryBuilder the SQL query builder owning this builder
+     */
     public NestedJsonQueryBuilder(AbstractSqlLikeQueryBuilder sqlQueryBuilder) {
         this.sqlQueryBuilder = sqlQueryBuilder;
         this.dialect = sqlQueryBuilder.getDialect();
