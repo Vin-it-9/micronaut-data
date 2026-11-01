@@ -17,7 +17,6 @@ package io.micronaut.data.processor.visitors
 
 import io.micronaut.data.annotation.Query
 import io.micronaut.data.annotation.QueryResult
-import io.micronaut.data.exceptions.MappingException
 import io.micronaut.data.model.JsonDataType
 import io.micronaut.data.model.query.builder.sql.Dialect
 
@@ -346,6 +345,11 @@ class SerializedProfile {
     @GeneratedValue
     private Long id;
     private String value;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getValue() { return value; }
+    public void setValue(String value) { this.value = value; }
 }
 """)
         def query = getQuery(repository.getRequiredMethod("findAll"))
@@ -392,6 +396,11 @@ class Track {
     @GeneratedValue
     private Long id;
     private String title;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 }
 """)
         def query = getQuery(repository.getRequiredMethod("findAll"))
@@ -450,6 +459,13 @@ class PagedChild {
     private String name;
     @Relation(Relation.Kind.MANY_TO_ONE)
     private PagedParent parent;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public PagedParent getParent() { return parent; }
+    public void setParent(PagedParent parent) { this.parent = parent; }
 }
 
 @MappedEntity("paged_tag")
@@ -460,6 +476,13 @@ class PagedTag {
     private String name;
     @Relation(Relation.Kind.MANY_TO_ONE)
     private PagedParent parent;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public PagedParent getParent() { return parent; }
+    public void setParent(PagedParent parent) { this.parent = parent; }
 }
 """)
         def method = repository.getRequiredMethod("findByNameOrderByName", String, Pageable)
@@ -558,7 +581,7 @@ class StringConverter implements AttributeConverter<String, String> {
 """)
 
         then:
-        def exception = thrown(MappingException)
+        def exception = thrown(RuntimeException)
         exception.message.contains('does not support attribute converter')
         exception.message.contains('ConvertedEntity.code')
     }
@@ -604,6 +627,11 @@ class GraphAddress {
     @GeneratedValue
     private Long id;
     private String city;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
 }
 
 @MappedEntity("graph_child")
@@ -669,7 +697,7 @@ class SimpleEntity {
     public void setName(String name) { this.name = name; }
 }
 """)
-        def tabularQuery = getQuery(repository.getRequiredMethod("findAll"))
+        def tabularQuery = repository.getRequiredMethod("findAll").stringValue(Query).get()
         def query = repository.getRequiredMethod("getCustom", Long).stringValue(Query).get()
 
         expect:

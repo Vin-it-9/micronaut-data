@@ -1,6 +1,7 @@
 package io.micronaut.data.jdbc.nestedjson
 
 import io.micronaut.core.annotation.Introspected
+import io.micronaut.core.annotation.Nullable
 import io.micronaut.data.annotation.GeneratedValue
 import io.micronaut.data.annotation.Id
 import io.micronaut.data.annotation.MappedEntity
@@ -24,6 +25,7 @@ class NestedJsonParent {
     List<NestedJsonTag> tags = []
 
     @Relation(Relation.Kind.MANY_TO_ONE)
+    @Nullable
     NestedJsonAddress address
 
     @Transient
@@ -42,6 +44,7 @@ class NestedJsonChild {
     @GeneratedValue
     Long id
 
+    @Nullable
     String name
 
     @Relation(Relation.Kind.MANY_TO_ONE)
@@ -70,4 +73,3 @@ class NestedJsonAddress {
 
     String city
 }
-
