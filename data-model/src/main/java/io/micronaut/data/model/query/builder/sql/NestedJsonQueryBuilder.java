@@ -21,9 +21,11 @@ import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.data.annotation.MappedProperty;
 import io.micronaut.data.annotation.OrderBy;
 import io.micronaut.data.annotation.QueryResult;
 import io.micronaut.data.annotation.Relation;
+import io.micronaut.data.annotation.TypeDef;
 import io.micronaut.data.annotation.sql.JoinColumn;
 import io.micronaut.data.exceptions.MappingException;
 import io.micronaut.data.model.Association;
@@ -307,6 +309,13 @@ public class NestedJsonQueryBuilder {
                                  PersistentProperty prop,
                                  NamingStrategy namingStrategy,
                                  boolean escape) {
+        validateConverter(prop);
+        String transformed = sqlQueryBuilder.getDataTransformerReadValue(alias, prop).orElse(null);
+        if (transformed != null) {
+            sb.append(transformed);
+            return;
+        }
+
         String colName = sqlQueryBuilder.getMappedName(namingStrategy, Collections.emptyList(), prop);
         String quotedCol = escape ? sqlQueryBuilder.quote(colName) : colName;
 
@@ -320,6 +329,19 @@ public class NestedJsonQueryBuilder {
             sb.append("to_json(").append(alias).append(".").append(quotedCol).append("::json)");
         } else {
             sb.append(alias).append(".").append(quotedCol);
+        }
+    }
+
+    private void validateConverter(PersistentProperty property) {
+        if (sqlQueryBuilder.isJsonOrWktGeometry(property)) {
+            return;
+        }
+        String converter = property.getAnnotationMetadata().stringValue(MappedProperty.class, "converter")
+            .orElseGet(() -> property.getAnnotationMetadata().stringValue(TypeDef.class, "converter").orElse(null));
+        if (converter != null && !Object.class.getName().equals(converter)) {
+            throw new MappingException("Automatic nested JSON projection does not support attribute converter ["
+                + converter + "] on property [" + property.getOwner().getName() + "." + property.getName()
+                + "]. Use a SQL read transformer or an explicit @Query for this property.");
         }
     }
 
@@ -434,7 +456,9 @@ public class NestedJsonQueryBuilder {
 
         sb.append("(SELECT ");
         if (isToMany) {
-            sb.append("json_agg(json_build_object(");
+            // SQL aggregates return NULL when no child rows exist. Keep collection
+            // properties compatible with normal Serialization collection semantics.
+            sb.append("COALESCE(json_agg(json_build_object(");
         } else {
             sb.append("json_build_object(");
         }
@@ -447,7 +471,7 @@ public class NestedJsonQueryBuilder {
             if (StringUtils.isNotEmpty(orderBy)) {
                 sb.append(" ").append(orderBy);
             }
-            sb.append(")");
+            sb.append("), json_build_array())");
         } else {
             sb.append(")");
         }
@@ -487,7 +511,8 @@ public class NestedJsonQueryBuilder {
 
         sb.append("(SELECT ");
         if (isToMany) {
-            sb.append("JSON_ARRAYAGG(JSON_OBJECT(");
+            // JSON_ARRAYAGG also returns NULL for an empty child result set.
+            sb.append("COALESCE(JSON_ARRAYAGG(JSON_OBJECT(");
         } else {
             sb.append("JSON_OBJECT(");
         }
@@ -500,7 +525,7 @@ public class NestedJsonQueryBuilder {
             if (StringUtils.isNotEmpty(orderBy)) {
                 sb.append(" ").append(orderBy);
             }
-            sb.append(" RETURNING JSON)");
+            sb.append(" RETURNING JSON), JSON_ARRAY(RETURNING JSON))");
         } else {
             sb.append(" RETURNING JSON)");
         }
