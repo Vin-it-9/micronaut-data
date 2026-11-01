@@ -340,7 +340,9 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
         List<JoinPath> joinPaths = new ArrayList<>(definition.getJoinPaths());
         joinPaths.sort((o1, o2) -> Comparator.comparingInt(String::length).thenComparing(String::compareTo).compare(o1.getPath(), o2.getPath()));
         for (JoinPath joinPath : joinPaths) {
-            queryState.applyJoin(joinPath);
+            if (shouldApplyJoinPath(annotationMetadata, definition, joinPath)) {
+                queryState.applyJoin(joinPath);
+            }
         }
 
         StringBuilder query = queryState.getQuery();
@@ -537,15 +539,88 @@ public abstract class AbstractSqlLikeQueryBuilder implements QueryBuilder {
     private void buildSelectClause(AnnotationMetadata annotationMetadata,
                                    SelectQueryDefinition definition,
                                    QueryState queryState) {
-        buildSelect(annotationMetadata,
-            queryState,
-            definition.selection(),
-            definition.isDistinct());
+        if (isNestedJsonQueryResult(annotationMetadata, definition)) {
+            buildNestedJsonSelect(annotationMetadata, queryState, definition);
+        } else {
+            buildSelect(annotationMetadata,
+                queryState,
+                definition.selection(),
+                definition.isDistinct());
+        }
 
         queryState.getQuery().append(FROM_CLAUSE)
             .append(getTableName(queryState.getEntity()))
             .append(getTableAsKeyword())
             .append(queryState.getRootAlias());
+    }
+
+    /**
+     * Determines whether a join path belongs in the outer query.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param definition the select query definition
+     * @param joinPath the join path
+     * @return {@code true} when the join should be applied
+     */
+    protected boolean shouldApplyJoinPath(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition, JoinPath joinPath) {
+        if (isNestedJsonQueryResult(annotationMetadata, definition) && NestedJsonQueryBuilder.isNestedJsonSupported(getDialect())) {
+            return !joinPath.getJoinType().isFetch();
+        }
+        return true;
+    }
+
+    /**
+     * Checks whether this query requests an automatically generated nested JSON entity result.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param definition the select query definition
+     * @return {@code true} when the selection is the root entity and its result type is JSON
+     */
+    protected boolean isNestedJsonQueryResult(AnnotationMetadata annotationMetadata, SelectQueryDefinition definition) {
+        if (annotationMetadata == null || isCountSelection(definition.selection())
+            || !(definition.selection() instanceof PersistentEntityRoot<?>)) {
+            return false;
+        }
+        return NestedJsonQueryBuilder.isNestedJsonQueryResult(annotationMetadata);
+    }
+
+    /**
+     * Checks whether the selection is a count expression.
+     *
+     * @param selection the query selection
+     * @return {@code true} when the selection counts rows or distinct rows
+     */
+    protected boolean isCountSelection(Selection<?> selection) {
+        if (selection instanceof UnaryExpression<?> unaryExpression) {
+            return unaryExpression.getType() == UnaryExpressionType.COUNT
+                || unaryExpression.getType() == UnaryExpressionType.COUNT_DISTINCT;
+        }
+        return false;
+    }
+
+    /**
+     * Appends the dialect-specific nested JSON projection.
+     *
+     * @param annotationMetadata the query annotation metadata
+     * @param queryState the current query state
+     * @param definition the select query definition
+     */
+    protected void buildNestedJsonSelect(AnnotationMetadata annotationMetadata,
+                                        QueryState queryState,
+                                        SelectQueryDefinition definition) {
+        PersistentEntity entity = queryState.getEntity();
+        String rootAlias = queryState.getRootAlias() != null ? queryState.getRootAlias() : getAliasName(entity);
+        Collection<JoinPath> joinPaths = definition.getJoinPaths();
+
+        NestedJsonQueryBuilder jsonBuilder = new NestedJsonQueryBuilder(this);
+        String jsonProjection = jsonBuilder.buildNestedJsonProjection(
+            entity,
+            rootAlias,
+            joinPaths,
+            annotationMetadata
+        );
+
+        queryState.getQuery().append(jsonProjection);
     }
 
     /**

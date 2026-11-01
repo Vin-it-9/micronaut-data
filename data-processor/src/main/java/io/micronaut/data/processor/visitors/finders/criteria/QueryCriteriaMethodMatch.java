@@ -243,6 +243,9 @@ public class QueryCriteriaMethodMatch extends AbstractCriteriaMethodMatch {
 
     private boolean isPageableWithJoins(MethodMatchContext matchContext,
                                         Collection<JoinPath> analyzedJoinPaths) {
+        if (isJsonQueryResult(matchContext)) {
+            return false;
+        }
         SourcePersistentEntity persistentEntity = matchContext.getRootEntity();
         return requiresPaginationSubquery(analyzedJoinPaths)
             && matchContext.getQueryBuilder() instanceof AbstractSqlLikeQueryBuilder sqlQueryBuilder
@@ -250,6 +253,13 @@ public class QueryCriteriaMethodMatch extends AbstractCriteriaMethodMatch {
             && (!(sqlQueryBuilder instanceof SqlQueryBuilder queryBuilder) || queryBuilder.getDialect() != Dialect.MYSQL)
             && !persistentEntity.hasCompositeIdentity()
             && !(persistentEntity.getIdentity() instanceof Embedded);
+    }
+
+    private static boolean isJsonQueryResult(MethodMatchContext matchContext) {
+        AnnotationValue<io.micronaut.data.annotation.QueryResult> queryResultAnn = matchContext.getMethodElement()
+            .getAnnotation(io.micronaut.data.annotation.QueryResult.class);
+        return queryResultAnn != null && queryResultAnn.enumValue("type", io.micronaut.data.annotation.QueryResult.Type.class)
+            .orElse(io.micronaut.data.annotation.QueryResult.Type.TABULAR) == io.micronaut.data.annotation.QueryResult.Type.JSON;
     }
 
     /**
